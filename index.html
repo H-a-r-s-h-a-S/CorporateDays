@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>SQLite Viewer (days view)</title>
+  <script src="sql-wasm.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 1em; }
+    select, button { margin: 1em 0; padding: 0.5em; font-size: 1em; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background-color: #f2f2f2; }
+  </style>
+</head>
+<body>
+  <h2>Data from "days" view</h2>
+
+  <label for="nameFilter">Filter by name:</label>
+  <select id="nameFilter">
+    <option value="">-- All --</option>
+  </select>
+
+  <div id="result"></div>
+
+  <script>
+    let db;
+
+    // Initialize sql.js
+    initSqlJs({ locateFile: file => `sql-wasm.wasm` }).then(SQL => {
+      fetch('data.db')
+        .then(res => res.arrayBuffer())
+        .then(buffer => {
+          db = new SQL.Database(new Uint8Array(buffer));
+          populateDropdown();
+          runQuery(); // Load all by default
+
+          document.getElementById('nameFilter').addEventListener('change', runQuery);
+        });
+    });
+
+    function populateDropdown() {
+      try {
+        const result = db.exec("SELECT DISTINCT name FROM days ORDER BY name");
+        if (result.length > 0) {
+          const names = result[0].values;
+          const select = document.getElementById('nameFilter');
+          names.forEach(row => {
+            const opt = document.createElement('option');
+            opt.value = row[0];
+            opt.textContent = row[0];
+            select.appendChild(opt);
+          });
+        }
+      } catch (e) {
+        document.getElementById('result').innerHTML = 'Error loading dropdown: ' + e.message;
+      }
+    }
+
+    function runQuery() {
+      const selectedName = document.getElementById('nameFilter').value;
+      const query = selectedName
+        ? `SELECT * FROM days WHERE name = '${selectedName.replace(/'/g, "''")}'`
+        : `SELECT * FROM days`;
+
+      try {
+        const result = db.exec(query);
+        if (result.length === 0) {
+          document.getElementById('result').innerHTML = 'No data found.';
+          return;
+        }
+
+        const columns = result[0].columns;
+        const values = result[0].values;
+
+        let html = '<table><thead><tr>' +
+          columns.map(col => `<th>${col}</th>`).join('') +
+          '</tr></thead><tbody>';
+        for (const row of values) {
+          html += '<tr>' + row.map(val => `<td>${val}</td>`).join('') + '</tr>';
+        }
+        html += '</tbody></table>';
+
+        document.getElementById('result').innerHTML = html;
+      } catch (e) {
+        document.getElementById('result').innerHTML = 'Error: ' + e.message;
+      }
+    }
+  </script>
+</body>
+</html>
